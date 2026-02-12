@@ -1,7 +1,10 @@
+#include "MinecraftPacketIds.hpp"
 #include "PacketViolationSeverity.hpp"
 #include "PacketViolationType.hpp"
 #include "deps/ReadOnlyBinaryStream.hpp"
 #include "deps/memory/Hook.hpp"
+#include <magic_enum/magic_enum.hpp>
+#include <print>
 
 INSTANCE_HOOK(
     BatchedNetworkPeerSendPacketHook,
@@ -22,12 +25,36 @@ INSTANCE_HOOK(
 ) {
     auto stream   = ReadOnlyBinaryStream(buffer);
     auto header   = stream.getUnsignedVarInt();
-    auto packetId = header & 0x3FF;
-    if (packetId == 156) { // MinecraftPacketIds::PacketViolationWarning
+    auto packetId = static_cast<MinecraftPacketIds>(header & 0x3FF);
+    if (packetId == MinecraftPacketIds::PacketViolationWarning) {
         auto type     = static_cast<PacketViolationType>(stream.getVarInt());
         auto severity = static_cast<PacketViolationSeverity>(stream.getVarInt());
-        auto errorId  = stream.getVarInt();
+        auto errorId  = static_cast<MinecraftPacketIds>(stream.getVarInt());
         auto context  = stream.getString();
+        std::println("\x1b[91m===============================================================================================================");
+        std::println("    Packet violation detected!");
+        std::println("    Violation Packet ID: {} ({}Packet)", static_cast<int>(errorId), magic_enum::enum_name(errorId));
+        std::println("    Violation Reason: {}", context);
+        std::println("    Violation Type: {}", magic_enum::enum_name(type));
+        std::println("    Violation Severity: {}", magic_enum::enum_name(severity));
+        std::println("===============================================================================================================\x1b[0m");
     }
     return origin(buffer, reliability, compressible);
+}
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH: {
+        BatchedNetworkPeerSendPacketHook::hook();
+        DisableThreadLibraryCalls(hModule);
+        break;
+    }
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+        break;
+    case DLL_PROCESS_DETACH:
+        BatchedNetworkPeerSendPacketHook::unhook();
+        break;
+    }
+    return TRUE;
 }
