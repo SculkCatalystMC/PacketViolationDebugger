@@ -30,11 +30,11 @@
 #include <type_traits>
 #include <utility>
 
-#define xorstr(str)                                                                                                    \
-    ::jm::xor_string(                                                                                                  \
-        []() { return str; },                                                                                          \
-        std::integral_constant<std::size_t, sizeof(str) / sizeof(*str)>{},                                             \
-        std::make_index_sequence<::jm::detail::_buffer_size<sizeof(str)>()>{}                                          \
+#define xorstr(str)                                                                                                                                  \
+    ::jm::xor_string(                                                                                                                                \
+        []() { return str; },                                                                                                                        \
+        std::integral_constant<std::size_t, sizeof(str) / sizeof(*str)>{},                                                                           \
+        std::make_index_sequence<::jm::detail::_buffer_size<sizeof(str)>()>{}                                                                        \
     )
 #define xorstr_(str) xorstr(str).crypt_get()
 
@@ -75,16 +75,14 @@ XORSTR_FORCEINLINE constexpr std::uint64_t key8() {
 
 // loads up to 8 characters of string into uint64 and xors it with the key
 template <std::size_t N, class CharT>
-XORSTR_FORCEINLINE constexpr std::uint64_t
-load_xored_str8(std::uint64_t key, std::size_t idx, const CharT* str) noexcept {
+XORSTR_FORCEINLINE constexpr std::uint64_t load_xored_str8(std::uint64_t key, std::size_t idx, const CharT* str) noexcept {
     using cast_type           = typename std::make_unsigned<CharT>::type;
     constexpr auto value_size = sizeof(CharT);
     constexpr auto idx_offset = 8 / value_size;
 
     std::uint64_t value = key;
     for (std::size_t i = 0; i < idx_offset && i + idx * idx_offset < N; ++i)
-        value ^=
-            (std::uint64_t{static_cast<cast_type>(str[i + idx * idx_offset])} << ((i % idx_offset) * 8 * value_size));
+        value ^= (std::uint64_t{static_cast<cast_type>(str[i + idx * idx_offset])} << ((i % idx_offset) * 8 * value_size));
 
     return value;
 }
@@ -124,10 +122,8 @@ public:
     using const_pointer = const CharT*;
 
     template <class L>
-    XORSTR_FORCEINLINE
-    xor_string(L l, std::integral_constant<std::size_t, Size>, std::index_sequence<Indices...>) noexcept
-    : _storage{JM_XORSTR_LOAD_FROM_REG(detail::uint64_v<detail::load_xored_str8<Size>(Keys, Indices, l())>::value)...} {
-    }
+    XORSTR_FORCEINLINE xor_string(L l, std::integral_constant<std::size_t, Size>, std::index_sequence<Indices...>) noexcept
+    : _storage{JM_XORSTR_LOAD_FROM_REG(detail::uint64_v<detail::load_xored_str8<Size>(Keys, Indices, l())>::value)...} {}
 
     XORSTR_FORCEINLINE constexpr size_type size() const noexcept { return Size - 1; }
 
@@ -143,39 +139,36 @@ public:
 
 #if defined(_M_ARM64) || defined(__aarch64__) || defined(_M_ARM) || defined(__arm__)
 #if defined(__clang__)
-        ((Indices >= sizeof(_storage) / 16
-              ? static_cast<void>(0)
-              : __builtin_neon_vst1q_v(
-                    reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
-                    veorq_u64(
-                        __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2, 51),
-                        __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(keys) + Indices * 2, 51)
-                    ),
-                    51
-                )),
+        ((Indices >= sizeof(_storage) / 16 ? static_cast<void>(0)
+                                           : __builtin_neon_vst1q_v(
+                                                 reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
+                                                 veorq_u64(
+                                                     __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2, 51),
+                                                     __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(keys) + Indices * 2, 51)
+                                                 ),
+                                                 51
+                                             )),
          ...);
 #else // GCC, MSVC
-        ((Indices >= sizeof(_storage) / 16
-              ? static_cast<void>(0)
-              : vst1q_u64(
-                    reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
-                    veorq_u64(
-                        vld1q_u64(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2),
-                        vld1q_u64(reinterpret_cast<const uint64_t*>(keys) + Indices * 2)
-                    )
-                )),
+        ((Indices >= sizeof(_storage) / 16 ? static_cast<void>(0)
+                                           : vst1q_u64(
+                                                 reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
+                                                 veorq_u64(
+                                                     vld1q_u64(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2),
+                                                     vld1q_u64(reinterpret_cast<const uint64_t*>(keys) + Indices * 2)
+                                                 )
+                                             )),
          ...);
 #endif
 #elif !defined(JM_XORSTR_DISABLE_AVX_INTRINSICS)
-        ((Indices >= sizeof(_storage) / 32
-              ? static_cast<void>(0)
-              : _mm256_store_si256(
-                    reinterpret_cast<__m256i*>(_storage) + Indices,
-                    _mm256_xor_si256(
-                        _mm256_load_si256(reinterpret_cast<const __m256i*>(_storage) + Indices),
-                        _mm256_load_si256(reinterpret_cast<const __m256i*>(keys) + Indices)
-                    )
-                )),
+        ((Indices >= sizeof(_storage) / 32 ? static_cast<void>(0)
+                                           : _mm256_store_si256(
+                                                 reinterpret_cast<__m256i*>(_storage) + Indices,
+                                                 _mm256_xor_si256(
+                                                     _mm256_load_si256(reinterpret_cast<const __m256i*>(_storage) + Indices),
+                                                     _mm256_load_si256(reinterpret_cast<const __m256i*>(keys) + Indices)
+                                                 )
+                                             )),
          ...);
 
         if constexpr (sizeof(_storage) % 32 != 0)
@@ -187,15 +180,14 @@ public:
                 )
             );
 #else
-        ((Indices >= sizeof(_storage) / 16
-              ? static_cast<void>(0)
-              : _mm_store_si128(
-                    reinterpret_cast<__m128i*>(_storage) + Indices,
-                    _mm_xor_si128(
-                        _mm_load_si128(reinterpret_cast<const __m128i*>(_storage) + Indices),
-                        _mm_load_si128(reinterpret_cast<const __m128i*>(keys) + Indices)
-                    )
-                )),
+        ((Indices >= sizeof(_storage) / 16 ? static_cast<void>(0)
+                                           : _mm_store_si128(
+                                                 reinterpret_cast<__m128i*>(_storage) + Indices,
+                                                 _mm_xor_si128(
+                                                     _mm_load_si128(reinterpret_cast<const __m128i*>(_storage) + Indices),
+                                                     _mm_load_si128(reinterpret_cast<const __m128i*>(keys) + Indices)
+                                                 )
+                                             )),
          ...);
 #endif
     }
@@ -216,39 +208,36 @@ public:
 
 #if defined(_M_ARM64) || defined(__aarch64__) || defined(_M_ARM) || defined(__arm__)
 #if defined(__clang__)
-        ((Indices >= sizeof(_storage) / 16
-              ? static_cast<void>(0)
-              : __builtin_neon_vst1q_v(
-                    reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
-                    veorq_u64(
-                        __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2, 51),
-                        __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(keys) + Indices * 2, 51)
-                    ),
-                    51
-                )),
+        ((Indices >= sizeof(_storage) / 16 ? static_cast<void>(0)
+                                           : __builtin_neon_vst1q_v(
+                                                 reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
+                                                 veorq_u64(
+                                                     __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2, 51),
+                                                     __builtin_neon_vld1q_v(reinterpret_cast<const uint64_t*>(keys) + Indices * 2, 51)
+                                                 ),
+                                                 51
+                                             )),
          ...);
 #else // GCC, MSVC
-        ((Indices >= sizeof(_storage) / 16
-              ? static_cast<void>(0)
-              : vst1q_u64(
-                    reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
-                    veorq_u64(
-                        vld1q_u64(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2),
-                        vld1q_u64(reinterpret_cast<const uint64_t*>(keys) + Indices * 2)
-                    )
-                )),
+        ((Indices >= sizeof(_storage) / 16 ? static_cast<void>(0)
+                                           : vst1q_u64(
+                                                 reinterpret_cast<uint64_t*>(_storage) + Indices * 2,
+                                                 veorq_u64(
+                                                     vld1q_u64(reinterpret_cast<const uint64_t*>(_storage) + Indices * 2),
+                                                     vld1q_u64(reinterpret_cast<const uint64_t*>(keys) + Indices * 2)
+                                                 )
+                                             )),
          ...);
 #endif
 #elif !defined(JM_XORSTR_DISABLE_AVX_INTRINSICS)
-        ((Indices >= sizeof(_storage) / 32
-              ? static_cast<void>(0)
-              : _mm256_store_si256(
-                    reinterpret_cast<__m256i*>(_storage) + Indices,
-                    _mm256_xor_si256(
-                        _mm256_load_si256(reinterpret_cast<const __m256i*>(_storage) + Indices),
-                        _mm256_load_si256(reinterpret_cast<const __m256i*>(keys) + Indices)
-                    )
-                )),
+        ((Indices >= sizeof(_storage) / 32 ? static_cast<void>(0)
+                                           : _mm256_store_si256(
+                                                 reinterpret_cast<__m256i*>(_storage) + Indices,
+                                                 _mm256_xor_si256(
+                                                     _mm256_load_si256(reinterpret_cast<const __m256i*>(_storage) + Indices),
+                                                     _mm256_load_si256(reinterpret_cast<const __m256i*>(keys) + Indices)
+                                                 )
+                                             )),
          ...);
 
         if constexpr (sizeof(_storage) % 32 != 0)
@@ -260,15 +249,14 @@ public:
                 )
             );
 #else
-        ((Indices >= sizeof(_storage) / 16
-              ? static_cast<void>(0)
-              : _mm_store_si128(
-                    reinterpret_cast<__m128i*>(_storage) + Indices,
-                    _mm_xor_si128(
-                        _mm_load_si128(reinterpret_cast<const __m128i*>(_storage) + Indices),
-                        _mm_load_si128(reinterpret_cast<const __m128i*>(keys) + Indices)
-                    )
-                )),
+        ((Indices >= sizeof(_storage) / 16 ? static_cast<void>(0)
+                                           : _mm_store_si128(
+                                                 reinterpret_cast<__m128i*>(_storage) + Indices,
+                                                 _mm_xor_si128(
+                                                     _mm_load_si128(reinterpret_cast<const __m128i*>(_storage) + Indices),
+                                                     _mm_load_si128(reinterpret_cast<const __m128i*>(keys) + Indices)
+                                                 )
+                                             )),
          ...);
 #endif
 

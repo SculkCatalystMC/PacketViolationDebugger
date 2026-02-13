@@ -6,8 +6,7 @@
 
 #define INRANGE(x, a, b) (x >= a && x <= b)
 #define GET_BYTE(x)      (GET_BITS(x[0]) << 4 | GET_BITS(x[1]))
-#define GET_BITS(x)                                                                                                    \
-    (INRANGE((x & (~0x20)), 'A', 'F') ? ((x & (~0x20)) - 'A' + 0xa) : (INRANGE(x, '0', '9') ? x - '0' : 0))
+#define GET_BITS(x)      (INRANGE((x & (~0x20)), 'A', 'F') ? ((x & (~0x20)) - 'A' + 0xa) : (INRANGE(x, '0', '9') ? x - '0' : 0))
 
 // uintptr_t operator"" _rva(uintptr_t rva) { return rva + reinterpret_cast<uintptr_t>(GetModuleHandleA(nullptr)); }
 
@@ -167,8 +166,7 @@ void recordPatchedBytes(uintptr_t address, size_t size) {
 
 FuncPtr resolveSignature(const char* signature) {
     auto start = std::chrono::high_resolution_clock::now();
-    if (signatureCache.find(signature) != signatureCache.end())
-        return reinterpret_cast<FuncPtr>(signatureCache[signature]);
+    if (signatureCache.find(signature) != signatureCache.end()) return reinterpret_cast<FuncPtr>(signatureCache[signature]);
 
     uintptr_t addr = FindSig(signature);
     auto      end  = std::chrono::high_resolution_clock::now();
@@ -183,8 +181,7 @@ FuncPtr resolveSignature(const char* signature) {
 bool IsReadableMemory(void* ptr, size_t /*size*/) {
     MEMORY_BASIC_INFORMATION mbi;
     if (VirtualQuery(ptr, &mbi, sizeof(mbi))) {
-        return (mbi.State == MEM_COMMIT)
-            && (mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_READ));
+        return (mbi.State == MEM_COMMIT) && (mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_READ));
     }
     return false;
 }

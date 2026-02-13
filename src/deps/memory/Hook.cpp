@@ -113,8 +113,7 @@ int processHook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc) {
     return rv;
 }
 
-[[maybe_unused]] int
-hook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc, HookPriority priority, bool suspendThreads) {
+[[maybe_unused]] int hook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc, HookPriority priority, bool suspendThreads) {
     std::lock_guard lock(hooksMutex);
 
     std::unique_ptr<thread::GlobalThreadPauser> pauser;

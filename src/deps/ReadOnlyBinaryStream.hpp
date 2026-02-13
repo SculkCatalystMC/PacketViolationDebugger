@@ -1,10 +1,3 @@
-// Copyright © 2025 GlacieTeam.All rights reserved.
-//
-// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
-// distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-//
-// SPDX-License-Identifier: MPL-2.0
-
 #pragma once
 #include <algorithm>
 #include <array>
@@ -32,11 +25,7 @@ private:
             return false;
         }
 
-        std::copy(
-            mBufferView.begin() + mReadPointer,
-            mBufferView.begin() + newReadPointer,
-            reinterpret_cast<char*>(target)
-        );
+        std::copy(mBufferView.begin() + mReadPointer, mBufferView.begin() + newReadPointer, reinterpret_cast<char*>(target));
         mReadPointer = newReadPointer;
         return true;
     }
@@ -57,13 +46,9 @@ public:
 
     constexpr void ignoreBytes(size_t length) noexcept { mReadPointer += length; }
 
-    [[nodiscard]] constexpr std::string getLeftBuffer() const noexcept {
-        return std::string(mBufferView.substr(mReadPointer));
-    }
+    [[nodiscard]] constexpr std::string getLeftBuffer() const noexcept { return std::string(mBufferView.substr(mReadPointer)); }
 
-    [[nodiscard]] constexpr std::string_view getLeftBufferView() const noexcept {
-        return mBufferView.substr(mReadPointer);
-    }
+    [[nodiscard]] constexpr std::string_view getLeftBufferView() const noexcept { return mBufferView.substr(mReadPointer); }
 
     [[nodiscard]] constexpr bool isOverflowed() const noexcept { return mHasOverflowed; }
 
@@ -71,9 +56,7 @@ public:
 
     [[nodiscard]] constexpr std::string_view view() const noexcept { return mBufferView; }
 
-    [[nodiscard]] constexpr bool operator==(ReadOnlyBinaryStream const& other) const noexcept {
-        return mBufferView == other.mBufferView;
-    }
+    [[nodiscard]] constexpr bool operator==(ReadOnlyBinaryStream const& other) const noexcept { return mBufferView == other.mBufferView; }
 
     constexpr bool getBytes(void* target, size_t num) noexcept {
         if (mHasOverflowed) {

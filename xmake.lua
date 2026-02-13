@@ -1,14 +1,10 @@
 add_rules("mode.debug", "mode.release")
 
-add_repositories(
-    "liteldev-repo https://github.com/LiteLDev/xmake-repo.git",
-    "groupmountain-repo https://github.com/GroupMountain/xmake-repo.git"
-)
+add_repositories("liteldev-repo https://github.com/LiteLDev/xmake-repo.git")
 
 add_requires(
     "detours v4.0.1-xmake.1",
-    "magic_enum v0.9.7",
-    "jsonc_reflection v1.3.0"
+    "magic_enum v0.9.7"
 )
 
 if is_plat("windows") and not has_config("vs_runtime") then
@@ -23,11 +19,13 @@ target("PacketViolationDebugger")
     set_strip("all")
     add_packages(
         "detours",
-        "magic_enum",
-        "jsonc_reflection"
+        "magic_enum"
     )
     add_includedirs("src")
-    add_files("src/**.cpp")
+    add_files(
+        "src/**.cpp",
+        "src/**.rc"
+    )
     add_defines(
         "NOMINMAX",
         "UNICODE",
@@ -53,5 +51,6 @@ target("PacketViolationDebugger")
     after_build(function (target)
         local output_dir = path.join(os.projectdir(), "bin")
         os.cp(target:targetfile(), output_dir)
+        os.exec("upx " .. output_dir .. "\\" .. target:filename())
         cprint("${bright green}[Shared Library]: ${reset}Shared Library already generated to " .. output_dir)
     end)
