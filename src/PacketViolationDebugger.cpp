@@ -1,6 +1,7 @@
 #include "MinecraftPacketIds.hpp"
 #include "PacketViolationSeverity.hpp"
 #include "PacketViolationType.hpp"
+#include "Version.hpp"
 #include "deps/ReadOnlyBinaryStream.hpp"
 #include "deps/memory/Hook.hpp"
 #include <chrono>
@@ -52,10 +53,20 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
     case DLL_PROCESS_ATTACH: {
         BatchedNetworkPeerSendPacketHook::hook();
         std::println(
-            "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] PacketViolationDebugger loaded!",
+            "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] PacketViolationDebugger v{} loaded!",
+            CURRENT_TIME,
+            FILE_VERSION_STRING
+        );
+        std::println(
+            "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] "
+            "https://github.com/GlacieTeam/PacketViolationDebugger",
             CURRENT_TIME
         );
-        std::println("\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] Author: GlacieTeam", CURRENT_TIME);
+        std::println(
+            "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] Copyright © 2026 GlacieTeam. All rights "
+            "reserved.",
+            CURRENT_TIME
+        );
         DisableThreadLibraryCalls(hModule);
         break;
     }

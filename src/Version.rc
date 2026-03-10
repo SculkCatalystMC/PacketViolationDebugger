@@ -23,7 +23,7 @@ BEGIN
             VALUE "OriginalFilename", "PacketViolationDebugger.dll"
             VALUE "ProductName", "PacketViolationDebugger"
             VALUE "ProductVersion", FILE_VERSION_STRING
-            VALUE "LegalCopyright", "Copyright (c) 2026 @ GlacieTeam"
+            VALUE "LegalCopyright", "© GlacieTeam. All rights reserved."
         END
     END
     BLOCK "VarFileInfo"
