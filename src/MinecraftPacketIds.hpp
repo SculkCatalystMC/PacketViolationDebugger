@@ -1,3 +1,15 @@
+// Copyright © 2026 SculkCatalystMC. All rights reserved.
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License or any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 #pragma once
 
 enum class MinecraftPacketIds : int {
@@ -232,7 +244,7 @@ enum class MinecraftPacketIds : int {
     PlayerUpdateEntityOverrides            = 325,
     PlayerLocation                         = 326,
     ClientboundControlSchemeSet            = 327,
-    DebugDrawer                            = 328,
+    PrimitiveShapes                        = 328,
     ServerboundPackSettingChange           = 329,
     ClientboundDataStore                   = 330,
     GraphicsParameterOverride              = 331,
@@ -244,5 +256,12 @@ enum class MinecraftPacketIds : int {
     VoxelShapes                            = 337,
     CameraSpline                           = 338,
     CameraAimAssistActorPriority           = 339,
-    EndId                                  = 340,
+    ResourcePacksReadyForValidation        = 340,
+    LocatorBar                             = 341,
+    PartyChanged                           = 342,
+    ServerboundDataDrivenScreenClosed      = 343,
+    SyncWorldClocks                        = 344,
+    ClientboundAttributeLayerSync          = 345,
+    ServerStoreInfo                        = 346,
+    ServerPresenceInfo                     = 347,
 };

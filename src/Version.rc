@@ -16,14 +16,14 @@ BEGIN
     BEGIN
         BLOCK "080404b0"    
         BEGIN
-            VALUE "CompanyName", "GlacieTeam"
+            VALUE "CompanyName", "SculkCatalystMC"
             VALUE "FileDescription", "Packet Violation Debugger for Minecraft Bedrock Client"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "PacketViolationDebugger.dll"
             VALUE "OriginalFilename", "PacketViolationDebugger.dll"
             VALUE "ProductName", "PacketViolationDebugger"
             VALUE "ProductVersion", FILE_VERSION_STRING
-            VALUE "LegalCopyright", "© GlacieTeam. All rights reserved."
+            VALUE "LegalCopyright", "© SculkCatalystMC. All rights reserved."
         END
     END
     BLOCK "VarFileInfo"
