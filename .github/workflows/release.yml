@@ -1,0 +1,48 @@
+name: release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  release-on-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install UPX
+        shell: pwsh
+        run: choco install upx -y --no-progress
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Package DLL
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "bin/PacketViolationDebugger.dll")) {
+            throw "bin/PacketViolationDebugger.dll not found"
+          }
+          Compress-Archive -Path "bin/PacketViolationDebugger.dll" -DestinationPath "PacketViolationDebugge-windows-amd64.zip" -Force
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PacketViolationDebugge-windows-amd64.zip

@@ -38,6 +38,7 @@ add_compile_definitions(
 
 set(PROJECT_BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
 set(PROJECT_LIB_DIR "${CMAKE_BINARY_DIR}/lib")
+find_program(UPX_EXECUTABLE upx)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -68,11 +69,15 @@ set_target_properties(PacketViolationDebugger PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_LIB_DIR}"
 )
 
-add_custom_command(TARGET PacketViolationDebugger POST_BUILD
-    COMMAND upx --best --lzma "$<TARGET_FILE:PacketViolationDebugger>"
-    COMMENT "Compressing PacketViolationDebugger with UPX..."
-    VERBATIM
-)
+if(UPX_EXECUTABLE)
+    add_custom_command(TARGET PacketViolationDebugger POST_BUILD
+        COMMAND "${UPX_EXECUTABLE}" --best --lzma "$<TARGET_FILE:PacketViolationDebugger>"
+        COMMENT "Compressing PacketViolationDebugger with UPX..."
+        VERBATIM
+    )
+else()
+    message(STATUS "UPX not found; skipping post-build compression.")
+endif()
 
 foreach(cfg IN ITEMS Debug Release RelWithDebInfo MinSizeRel)
     string(TOUPPER "${cfg}" cfg_upper)
