@@ -547,11 +547,8 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 
-# XMake
-/.xmake/
+# CMake
 /build/
-/CMakeLists.txt
-artifacts
 
 # Project specific ignores
 /.idea/

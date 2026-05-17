@@ -1,20 +1,70 @@
 #include "Hook.hpp"
-#include "GlobalThreadPauser.hpp"
+
 #include <Windows.h>
 #include <detours/detours.h>
+
+#include <chrono>
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <print>
+#include <psapi.h>
 #include <set>
+#include <string>
+#include <tlhelp32.h>
 #include <unordered_map>
+#include <vector>
 
+namespace thread {
+
+class GlobalThreadPauser {
+    std::vector<unsigned int> pausedIds;
+
+public:
+    GlobalThreadPauser();
+    ~GlobalThreadPauser();
+};
+
+GlobalThreadPauser::GlobalThreadPauser() {
+    HANDLE      h         = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    static auto processId = GetCurrentProcessId();
+    auto        threadId  = GetCurrentThreadId();
+
+    THREADENTRY32 te;
+    te.dwSize = sizeof(te);
+    if (Thread32First(h, &te)) {
+        do {
+            if (te.dwSize >= offsetof(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID)) {
+                if (te.th32OwnerProcessID == processId && te.th32ThreadID != threadId) {
+                    HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME, false, te.th32ThreadID);
+                    if (thread != nullptr) {
+                        if ((int)SuspendThread(thread) != -1) {
+                            pausedIds.emplace_back(te.th32ThreadID);
+                        }
+                        CloseHandle(thread);
+                    }
+                }
+            }
+            te.dwSize = sizeof(te);
+        } while (Thread32Next(h, &te));
+    }
+    CloseHandle(h);
+}
+
+GlobalThreadPauser::~GlobalThreadPauser() {
+    for (auto id : pausedIds) {
+        HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME, false, id);
+        if (thread != nullptr) {
+            ResumeThread(thread);
+            CloseHandle(thread);
+        }
+    }
+}
+
+} // namespace thread
 
 namespace memory {
-
-FuncPtr resolveIdentifier(char const* identifier) {
-    // don't have symbol resolver yet
-    return resolveSignature(identifier);
-}
 
 FuncPtr resolveIdentifier(std::initializer_list<const char*> identifiers) {
     for (const auto& identifier : identifiers) {
@@ -28,15 +78,11 @@ FuncPtr resolveIdentifier(std::initializer_list<const char*> identifiers) {
 }
 
 struct HookElement {
-    FuncPtr      detour{};
-    FuncPtr*     originalFunc{};
-    HookPriority priority{};
-    int          id{};
+    FuncPtr  detour{};
+    FuncPtr* originalFunc{};
+    int      id{};
 
-    bool operator<(const HookElement& other) const {
-        if (priority != other.priority) return priority < other.priority;
-        return id < other.id;
-    }
+    bool operator<(const HookElement& other) const { return id < other.id; }
 };
 
 struct HookData {
@@ -113,7 +159,7 @@ int processHook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc) {
     return rv;
 }
 
-[[maybe_unused]] int hook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc, HookPriority priority, bool suspendThreads) {
+int hook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc, bool suspendThreads) {
     std::lock_guard lock(hooksMutex);
 
     std::unique_ptr<thread::GlobalThreadPauser> pauser;
@@ -123,13 +169,13 @@ int processHook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc) {
     auto it = getHooks().find(target);
     if (it != getHooks().end()) {
         auto hookData = it->second;
-        hookData->hooks.insert({detour, originalFunc, priority, hookData->incrementHookId()});
+        hookData->hooks.insert({detour, originalFunc, hookData->incrementHookId()});
         hookData->updateCallList();
         return ERROR_SUCCESS;
     }
     auto hookData   = new HookData{target, target, detour, nullptr, {}, {}};
     hookData->thunk = createThunk(&hookData->start);
-    hookData->hooks.insert({detour, originalFunc, priority, hookData->incrementHookId()});
+    hookData->hooks.insert({detour, originalFunc, hookData->incrementHookId()});
     auto ret = processHook(target, hookData->thunk, &hookData->origin);
     if (ret) {
         delete hookData;
@@ -140,7 +186,7 @@ int processHook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc) {
     return ERROR_SUCCESS;
 }
 
-[[maybe_unused]] bool unhook(FuncPtr target, FuncPtr detour, bool suspendThreads) {
+bool unhook(FuncPtr target, FuncPtr detour, bool suspendThreads) {
     std::lock_guard lock(hooksMutex);
 
     std::unique_ptr<thread::GlobalThreadPauser> pauser;
@@ -177,29 +223,112 @@ int processHook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc) {
     return true;
 }
 
-[[maybe_unused]] void unhookAll() {
-    std::lock_guard lock(hooksMutex);
+FuncPtr resolveSignature(char const* signature) {
+    static std::unordered_map<std::string, uintptr_t> signatureCache;
+    if (signatureCache.find(signature) != signatureCache.end()) {
+        return reinterpret_cast<FuncPtr>(signatureCache[signature]);
+    }
 
-    std::unique_ptr<thread::GlobalThreadPauser> pauser;
-    pauser = std::make_unique<thread::GlobalThreadPauser>();
+    auto ParseSignature = [](const char* sig, std::vector<unsigned char>& pattern, std::vector<unsigned char>& mask) {
+        while (*sig) {
+            if (*sig == ' ' || *sig == '\t') {
+                ++sig;
+                continue;
+            }
+            if (*sig == '?') {
+                pattern.push_back(0);
+                mask.push_back(0);
+                if (*(sig + 1) == '?') sig += 2;
+                else ++sig;
+            } else {
+                char         byteStr[3] = {sig[0], sig[1], 0};
+                unsigned int byteVal    = strtoul(byteStr, nullptr, 16);
+                pattern.push_back(static_cast<unsigned char>(byteVal));
+                mask.push_back(0xFF);
+                sig += 2;
+            }
+        }
+    };
 
-    std::vector<std::pair<FuncPtr, std::shared_ptr<HookData>>> hooksCopy(getHooks().begin(), getHooks().end());
+    struct MemoryRegion {
+        uintptr_t base;
+        size_t    size;
+    };
 
-    for (auto& [target, hookData] : hooksCopy) {
-        FuncPtr tmp = hookData->origin;
+    auto GetModuleMemoryRegions = [](uintptr_t rangeStart, uintptr_t rangeEnd) {
+        std::vector<MemoryRegion> regions;
+        uintptr_t                 addr = rangeStart;
+        while (addr < rangeEnd) {
+            MEMORY_BASIC_INFORMATION mbi;
+            if (VirtualQuery(reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)) == 0) {
+                addr += 0x1000;
+                continue;
+            }
+            if (mbi.State == MEM_COMMIT && !(mbi.Protect & PAGE_NOACCESS) && !(mbi.Protect & PAGE_GUARD)) {
+                MemoryRegion r{};
+                r.base = reinterpret_cast<uintptr_t>(mbi.BaseAddress);
+                r.size = mbi.RegionSize;
+                regions.push_back(r);
+            }
+            addr += mbi.RegionSize;
+        }
+        return regions;
+    };
 
-        DetourTransactionBegin();
-        DetourUpdateThread(GetCurrentThread());
+    std::vector<unsigned char> pattern;
+    std::vector<unsigned char> mask;
+    ParseSignature(signature, pattern, mask);
+    const size_t patLen = pattern.size();
+    if (patLen == 0) return 0;
 
-        int detachResult = DetourDetach(&tmp, hookData->thunk);
-        int commitResult = DetourTransactionCommit();
-
-        if (detachResult != NO_ERROR || commitResult != NO_ERROR) {
-            std::cerr << "Failed to unhook function at: " << target << std::endl;
+    bool pure = true;
+    for (unsigned char m : mask) {
+        if (m != 0xFF) {
+            pure = false;
+            break;
         }
     }
 
-    getHooks().clear();
+    static const auto rangeStart = reinterpret_cast<uintptr_t>(GetModuleHandleA(nullptr));
+    static MODULEINFO miModInfo  = {0};
+    static bool       init       = false;
+    if (!init) {
+        init = true;
+        GetModuleInformation(GetCurrentProcess(), reinterpret_cast<HMODULE>(rangeStart), &miModInfo, sizeof(miModInfo));
+    }
+    const uintptr_t rangeEnd = rangeStart + miModInfo.SizeOfImage;
+
+    std::vector<MemoryRegion> regions = GetModuleMemoryRegions(rangeStart, rangeEnd);
+    if (regions.empty()) return 0;
+
+    for (const auto& region : regions) {
+        uintptr_t regionEnd = region.base + region.size;
+        for (uintptr_t addr = region.base; addr <= regionEnd - patLen; ++addr) {
+            if (pure) {
+                if (memcmp(reinterpret_cast<const void*>(addr), pattern.data(), patLen) == 0) return reinterpret_cast<FuncPtr>(addr);
+            } else {
+                bool match = true;
+                for (size_t k = 0; k < patLen; k++) {
+                    unsigned char byteVal = *(reinterpret_cast<unsigned char*>(addr + k));
+                    if (mask[k] != 0 && byteVal != pattern[k]) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) return reinterpret_cast<FuncPtr>(addr);
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+bool IsReadableMemory(void* ptr, size_t /*size*/) {
+    MEMORY_BASIC_INFORMATION mbi;
+    if (VirtualQuery(ptr, &mbi, sizeof(mbi))) {
+        return (mbi.State == MEM_COMMIT) && (mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_READ));
+    }
+    return false;
 }
 
 } // namespace memory

@@ -1,12 +1,12 @@
 #pragma once
 #include "Memory.hpp"
+#include <initializer_list>
 #include <type_traits>
+#include <utility>
 
 #define VA_EXPAND(...) __VA_ARGS__
 
 namespace memory {
-
-void unhookAll();
 
 template <typename T>
 struct IsConstMemberFun : std::false_type {};
@@ -33,29 +33,10 @@ using AddConstAtMemberFunT = typename AddConstAtMemberFun<T>::type;
 template <typename T, typename U>
 using AddConstAtMemberFunIfOriginIs = std::conditional_t<IsConstMemberFunV<U>, AddConstAtMemberFunT<T>, T>;
 
-/**
- * @brief Hook priority enum.
- * @details The lower priority, the hook will be executed earlier
- */
-enum class HookPriority : int {
-    Lowest  = 0,
-    Low     = 100,
-    Normal  = 200,
-    High    = 300,
-    Highest = 400,
-};
-
-int hook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc, HookPriority priority, bool suspendThreads = true);
+int hook(FuncPtr target, FuncPtr detour, FuncPtr* originalFunc, bool suspendThreads = true);
 
 bool unhook(FuncPtr target, FuncPtr detour, bool suspendThreads = true);
 
-/**
- * @brief Get the pointer of a function by identifier.
- *
- * @param identifier symbol or signature
- * @return FuncPtr
- */
-FuncPtr resolveIdentifier(char const* identifier);
 FuncPtr resolveIdentifier(std::initializer_list<const char*> identifiers);
 
 
@@ -68,38 +49,23 @@ constexpr FuncPtr resolveIdentifier(T identifier) {
     return toFuncPtr(identifier);
 }
 
-// redirect to resolveIdentifier(char const*)
-template <typename T>
-constexpr FuncPtr resolveIdentifier(char const* identifier) {
-    return resolveIdentifier(identifier);
-}
-
-// redirect to resolveIdentifier(uintptr_t)
-template <typename T>
-constexpr FuncPtr resolveIdentifier(uintptr_t address) {
-    return resolveIdentifier(address);
-}
-
 // redirect to resolveIdentifier(FuncPtr)
 template <typename T>
 constexpr FuncPtr resolveIdentifier(FuncPtr address) {
     return address;
 }
 
-template <typename T>
-struct HookAutoRegister {
-    HookAutoRegister() { T::hook(); }
-    ~HookAutoRegister() { T::unhook(); }
-    static int  hook() { return T::hook(); }
-    static bool unhook() { return T::unhook(); }
-};
-
 } // namespace memory
 
-#define HOOK_IMPL(REGISTER, FUNC_PTR, STATIC, CALL, DEF_TYPE, TYPE, PRIORITY, IDENTIFIER, RET_TYPE, ...)                                             \
+#define MEMORY_CONCAT_IMPL(a, b)      a##b
+#define MEMORY_CONCAT(a, b)           MEMORY_CONCAT_IMPL(a, b)
+#define MEMORY_HOOK_TYPE_NAME(id)     MEMORY_CONCAT(AutoHook, id)
+#define MEMORY_HOOK_REGISTER_NAME(id) MEMORY_CONCAT(MEMORY_HOOK_TYPE_NAME(id), AutoRegister)
+#define HOOK_SIGS(...)                ::memory::resolveIdentifier({__VA_ARGS__})
+
+#define HOOK_IMPL(REGISTER, FUNC_PTR, STATIC, CALL, DEF_TYPE, TYPE, IDENTIFIER, RET_TYPE, ...)                                                       \
     struct DEF_TYPE TYPE {                                                                                                                           \
         using FuncPtr        = ::memory::FuncPtr;                                                                                                    \
-        using HookPriority   = ::memory::HookPriority;                                                                                               \
         using OriginFuncType = ::memory::AddConstAtMemberFunIfOriginIs<RET_TYPE FUNC_PTR(__VA_ARGS__), decltype(IDENTIFIER)>;                        \
                                                                                                                                                      \
         inline static FuncPtr        target{};                                                                                                       \
@@ -117,7 +83,7 @@ struct HookAutoRegister {
             if (target == nullptr) {                                                                                                                 \
                 return -1;                                                                                                                           \
             }                                                                                                                                        \
-            return memory::hook(target, memory::toFuncPtr(&DEF_TYPE::detour), reinterpret_cast<FuncPtr*>(&originFunc), PRIORITY);                    \
+            return memory::hook(target, memory::toFuncPtr(&DEF_TYPE::detour), reinterpret_cast<FuncPtr*>(&originFunc));                              \
         }                                                                                                                                            \
                                                                                                                                                      \
         static bool unhook() { return memory::unhook(target, memory::toFuncPtr(&DEF_TYPE::detour)); }                                                \
@@ -125,107 +91,18 @@ struct HookAutoRegister {
     REGISTER;                                                                                                                                        \
     RET_TYPE DEF_TYPE::detour(__VA_ARGS__)
 
-#define AUTO_REG_HOOK_IMPL(FUNC_PTR, STATIC, CALL, DEF_TYPE, ...)                                                                                    \
-    VA_EXPAND(HOOK_IMPL(inline memory::HookAutoRegister<DEF_TYPE> DEF_TYPE##AutoRegister, FUNC_PTR, STATIC, CALL, DEF_TYPE, __VA_ARGS__))
+#define AUTO_INSTANCE_HOOK_IMPL(ID, ...)                                                                                                             \
+    VA_EXPAND(HOOK_IMPL(                                                                                                                             \
+        inline struct MEMORY_HOOK_REGISTER_NAME(ID) {                                                                                                \
+            MEMORY_HOOK_REGISTER_NAME(ID)() { MEMORY_HOOK_TYPE_NAME(ID)::hook(); }                                                                   \
+            ~MEMORY_HOOK_REGISTER_NAME(ID)() { MEMORY_HOOK_TYPE_NAME(ID)::unhook(); }                                                                \
+        } MEMORY_HOOK_REGISTER_NAME(ID),                                                                                                             \
+        (MEMORY_HOOK_TYPE_NAME(ID)::*),                                                                                                              \
+        ,                                                                                                                                            \
+        (this->*originFunc),                                                                                                                         \
+        MEMORY_HOOK_TYPE_NAME(ID),                                                                                                                   \
+        ,                                                                                                                                            \
+        __VA_ARGS__                                                                                                                                  \
+    ))
 
-#define MANUAL_REG_HOOK_IMPL(...) VA_EXPAND(HOOK_IMPL(, __VA_ARGS__))
-
-#define STATIC_HOOK_IMPL(...) VA_EXPAND(MANUAL_REG_HOOK_IMPL((*), static, originFunc, __VA_ARGS__))
-
-#define AUTO_STATIC_HOOK_IMPL(...) VA_EXPAND(AUTO_REG_HOOK_IMPL((*), static, originFunc, __VA_ARGS__))
-
-#define INSTANCE_HOOK_IMPL(DEF_TYPE, ...) VA_EXPAND(MANUAL_REG_HOOK_IMPL((DEF_TYPE::*), , (this->*originFunc), DEF_TYPE, __VA_ARGS__))
-
-#define AUTO_INSTANCE_HOOK_IMPL(DEF_TYPE, ...) VA_EXPAND(AUTO_REG_HOOK_IMPL((DEF_TYPE::*), , (this->*originFunc), DEF_TYPE, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a typed static function.
- * @param DefType The name of the hook definition.
- * @param type The type of the function.
- * @param priority The priority of the hook.
- * @param identifier The identifier of the hook. It can be a function symbol,
- * address or a signature.
- * @param Ret The return type of the hook.
- * @param ... The parameters of the hook.
- *
- * @note register or unregister by calling DefType::hook() and
- * DefType::unhook().
- */
-#define TYPED_STATIC_HOOK(DefType, type, priority, identifier, Ret, ...)                                                                             \
-    VA_EXPAND(STATIC_HOOK_IMPL(DefType, : public type, priority, identifier, Ret, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a static function.
- * @param DefType The name of the hook definition.
- * @param priority The priority of the hook.
- * @param identifier The identifier of the hook. It can be a function symbol,
- * address or a signature.
- * @param Ret The return type of the hook.
- * @param ... The parameters of the hook.
- *
- * @note register or unregister by calling DefType::hook() and
- * DefType::unhook().
- */
-#define STATIC_HOOK(DefType, priority, identifier, Ret, ...) VA_EXPAND(STATIC_HOOK_IMPL(DefType, , priority, identifier, Ret, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a typed static function.
- * @details The hook will be automatically registered and unregistered.
- * @see TYPED_STATIC_HOOK for usage.
- */
-#define AUTO_TYPED_STATIC_HOOK(DefType, type, priority, identifier, Ret, ...)                                                                        \
-    VA_EXPAND(AUTO_STATIC_HOOK_IMPL(DefType, : public type, priority, identifier, Ret, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a static function.
- * @details The hook will be automatically registered and unregistered.
- * @see STATIC_HOOK for usage.
- */
-#define AUTO_STATIC_HOOK(DefType, priority, identifier, Ret, ...) VA_EXPAND(AUTO_STATIC_HOOK_IMPL(DefType, , priority, identifier, Ret, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a typed instance function.
- * @param DEF_TYPE The name of the hook definition.
- * @param PRIORITY memory::HookPriority The priority of the hook.
- * @param TYPE The type which the function belongs to.
- * @param IDENTIFIER The identifier of the hook. It can be a function pointer,
- * symbol, address or a signature.
- * @param RET_TYPE The return type of the hook.
- * @param ... The parameters of the hook.
- *
- * @note register or unregister by calling DEF_TYPE::hook() and
- * DEF_TYPE::unhook().
- */
-#define TYPED_HOOK(DEF_TYPE, PRIORITY, TYPE, IDENTIFIER, RET_TYPE, ...)                                                                              \
-    VA_EXPAND(INSTANCE_HOOK_IMPL(DEF_TYPE, : public TYPE, PRIORITY, IDENTIFIER, RET_TYPE, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a instance function.
- * @param DEF_TYPE The name of the hook definition.
- * @param PRIORITY memory::HookPriority The priority of the hook.
- * @param IDENTIFIER The identifier of the hook. It can be a function pointer,
- * symbol, address or a signature.
- * @param RET_TYPE The return type of the hook.
- * @param ... The parameters of the hook.
- *
- * @note register or unregister by calling DEF_TYPE::hook() and
- * DEF_TYPE::unhook().
- */
-#define INSTANCE_HOOK(DEF_TYPE, PRIORITY, IDENTIFIER, RET_TYPE, ...)                                                                                 \
-    VA_EXPAND(INSTANCE_HOOK_IMPL(DEF_TYPE, , PRIORITY, IDENTIFIER, RET_TYPE, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a typed instance function.
- * @details The hook will be automatically registered and unregistered.
- * @see TYPED_HOOK for usage.
- */
-#define AUTO_TYPED_INSTANCE_HOOK(DEF_TYPE, PRIORITY, TYPE, IDENTIFIER, RET_TYPE, ...)                                                                \
-    VA_EXPAND(AUTO_INSTANCE_HOOK_IMPL(DEF_TYPE, : public TYPE, PRIORITY, IDENTIFIER, RET_TYPE, __VA_ARGS__))
-
-/**
- * @brief Register a hook for a instance function.
- * @details The hook will be automatically registered and unregistered.
- * @see HOOK for usage.
- */
-#define AUTO_INSTANCE_HOOK(DEF_TYPE, PRIORITY, IDENTIFIER, RET_TYPE, ...)                                                                            \
-    VA_EXPAND(AUTO_INSTANCE_HOOK_IMPL(DEF_TYPE, , PRIORITY, IDENTIFIER, RET_TYPE, __VA_ARGS__))
+#define AUTO_INSTANCE_HOOK(IDENTIFIER, RET_TYPE, ...) VA_EXPAND(AUTO_INSTANCE_HOOK_IMPL(__COUNTER__, IDENTIFIER, RET_TYPE, __VA_ARGS__))

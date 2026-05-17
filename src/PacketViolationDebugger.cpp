@@ -11,18 +11,17 @@
 #define CURRENT_TIME                                                                                                                                 \
     std::chrono::zoned_time { std::chrono::current_zone(), std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now()) }
 
-INSTANCE_HOOK(
-    BatchedNetworkPeerSendPacketHook,
-    memory::HookPriority::Normal,
-    memory::resolveIdentifier(
-        {// 1.21.50
-         "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 70 41 8B F1 48 8B FA 48 8B D9 48 83 C1 18 48 83 7A ?? ?? 76 ?? 48 8B 12",
-         // 1.21.60 - 1.26.0
-         "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 81 EC 80 00 00 00 41 8B F1 48 8B FA 48 8B D9 48 83 C1 18 48 8B 01 4C 8B 90 ?? ?? ?? ?? 48 8B C2 48 83 "
-         "7A ?? ?? 76 ?? 48 8B 02",
-         // 1.26.10
-         "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 81 EC 90 00 00 00 0F 29 B4 24 ?? ?? ?? ?? 41 8B F1"
-        }
+AUTO_INSTANCE_HOOK(
+    HOOK_SIGS(
+        // 1.21.50
+        "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 70 41 8B F1 48 8B FA 48 8B D9 48 83 C1 18 48 83 7A ?? ?? 76 ?? 48 8B 12",
+        // 1.21.60 - 1.26.0
+        "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 81 EC 80 00 00 00 41 8B F1 48 8B FA 48 8B D9 48 83 C1 18 48 8B 01 4C 8B 90 ?? ?? ?? ?? 48 8B C2 48 83 "
+        "7A ?? ?? 76 ?? 48 8B 02",
+        // 1.26.10
+        "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 81 EC 90 00 00 00 0F 29 B4 24 ?? ?? ?? ?? 41 8B F1",
+        // 1.26.20
+        "55 56 57 53 48 83 EC 78 48 8D 6C 24 70 48 C7 45 00 FE FF FF FF 44 89 CB"
     ),
     void,
     std::string& buffer,
@@ -51,7 +50,6 @@ INSTANCE_HOOK(
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH: {
-        BatchedNetworkPeerSendPacketHook::hook();
         std::println(
             "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] PacketViolationDebugger v{} loaded!",
             CURRENT_TIME,
@@ -59,11 +57,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
         );
         std::println(
             "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] "
-            "https://github.com/GlacieTeam/PacketViolationDebugger",
+            "https://github.com/SculkCatalystMC/PacketViolationDebugger",
             CURRENT_TIME
         );
         std::println(
-            "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] Copyright © 2026 GlacieTeam. All rights "
+            "\033[38;2;173;216;230m{:%T} \033[38;2;32;178;170mINFO \x1b[0m[PacketViolationDebugger] Copyright © 2026 SculkCatalystMC. All rights "
             "reserved.",
             CURRENT_TIME
         );
@@ -74,7 +72,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) {
     case DLL_THREAD_DETACH:
         break;
     case DLL_PROCESS_DETACH:
-        BatchedNetworkPeerSendPacketHook::unhook();
         break;
     }
     return TRUE;

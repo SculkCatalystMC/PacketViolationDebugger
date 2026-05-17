@@ -3,5 +3,5 @@
     "entry": "PacketViolationDebugger.dll",
     "version": "1.0.0",
     "type": "preload-native",
-    "author": "GlacieTeam"
+    "author": "SculkCatalystMC"
 }
