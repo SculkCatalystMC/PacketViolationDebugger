@@ -40,9 +40,9 @@ jobs:
           if (-not (Test-Path "bin/PacketViolationDebugger.dll")) {
             throw "bin/PacketViolationDebugger.dll not found"
           }
-          Compress-Archive -Path "bin/PacketViolationDebugger.dll" -DestinationPath "PacketViolationDebugge-windows-amd64.zip" -Force
+          Compress-Archive -Path "bin/PacketViolationDebugger.dll" -DestinationPath "PacketViolationDebugger-windows-amd64.zip" -Force
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: PacketViolationDebugge-windows-amd64.zip
+          files: PacketViolationDebugger-windows-amd64.zip
